@@ -1,6 +1,6 @@
-# 🎨 GamePainter - 游戏UI占位图生成器
+# 🎨 GamePainter - 基础绘图工具
 
-> 为游戏项目Demo快速生成各种UI占位图，无需美术人员！
+> 提供 12 个核心绘图工具，通过组合可绑制任意复杂图形！
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
@@ -8,11 +8,10 @@
 
 ## ✨ 特性
 
-- 🎮 **专为游戏设计** - 涵盖常见游戏UI元素
-- 🔧 **MCP工具集成** - 可被AI助手直接调用
-- 🎨 **多种风格** - 支持现代、奇幻、科幻、像素等风格
-- 💎 **稀有度系统** - 支持普通到传说的稀有度边框
-- 📦 **开箱即用** - 快速生成完整UI套件
+- 🎨 **12 个基础工具** - 精简设计，功能完整
+- 🔧 **MCP 工具集成** - 可被 AI 助手直接调用
+- 📐 **灵活组合** - 基础图形组合成复杂图案
+- 🚀 **开箱即用** - 无需复杂配置
 
 ## 🚀 快速开始
 
@@ -32,64 +31,36 @@ pip install -r requirements.txt
 ### 直接使用
 
 ```python
-from painter import GamePainter, create_button, create_icon
+from painter import GamePainter
 
-# 创建按钮
-btn = create_button(120, 40, text="开始游戏", style="gradient", color="blue")
-btn.save("start_button.png")
+# 创建画布
+p = GamePainter(200, 150, bg_color=(240, 240, 240, 255))
 
-# 创建图标
-star = create_icon(64, "star")
-star.save("star_icon.png")
+# 画一个房子
+p.pen_rect(50, 60, 100, 80, fill_color=(255, 230, 180, 255))  # 墙
+p.pen_polygon([(50, 60), (100, 20), (150, 60)], fill_color=(180, 80, 50, 255))  # 屋顶
+p.pen_rect(85, 100, 30, 40, fill_color=(139, 90, 43, 255))  # 门
 
-# 使用 GamePainter 类进行更多自定义
-painter = GamePainter(200, 30)
-painter.draw_progress_bar(progress=75)
-painter.save("progress.png")
+# 保存
+p.save("house.png")
 ```
-
-### 生成示例
-
-```bash
-python painter.py
-```
-
-这将在 `output/` 目录生成所有示例图片。
 
 ## 🔌 MCP 工具配置
 
 ### Cursor 配置
-
-在 Cursor 的 MCP 设置中添加：
 
 ```json
 {
   "mcpServers": {
     "game-painter": {
       "command": "python",
-      "args": ["/path/to/game-painter/server.py"],
-      "env": {}
-    }
-  }
-}
-```
-
-或使用 uvx（需要先发布到 PyPI）：
-
-```json
-{
-  "mcpServers": {
-    "game-painter": {
-      "command": "uvx",
-      "args": ["game-painter"]
+      "args": ["/path/to/game-painter/server.py"]
     }
   }
 }
 ```
 
 ### Claude Desktop 配置
-
-编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`：
 
 ```json
 {
@@ -102,165 +73,191 @@ python painter.py
 }
 ```
 
-## 🛠️ 可用工具
+## 🛠️ 工具列表 (12 个)
 
-### 预设UI组件
-
-#### 1. `draw_button` - 绘制按钮
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| width | int | 120 | 宽度 |
-| height | int | 40 | 高度 |
-| text | string | "" | 按钮文字 |
-| style | enum | gradient | flat/gradient/glossy/outline/pixel |
-| color | enum | blue | blue/green/red/orange/purple |
-
-#### 2. `draw_icon` - 绘制图标
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| icon_type | enum | star/coin/gem/heart/shield/arrow |
-| size | int | 图标尺寸 |
-| gem_type | enum | diamond/ruby/emerald/sapphire |
-| direction | enum | up/down/left/right (箭头方向) |
-
-#### 3. `draw_progress_bar` - 绘制进度条
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| width | int | 200 | 宽度 |
-| height | int | 24 | 高度 |
-| progress | float | 50 | 进度 0-100 |
-| bar_type | enum | normal | normal/health |
-
-#### 4. `draw_item_slot` - 绘制道具槽
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| rarity | enum | common | common/uncommon/rare/epic/legendary |
-| show_shine | bool | false | 显示闪光效果 |
-
-#### 5. `draw_dialog_box` - 绘制对话框
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| style | enum | modern | modern/fantasy/scifi/pixel |
-| show_arrow | bool | true | 显示对话箭头 |
-
-#### 6. `draw_minimap` - 绘制小地图
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| shape | enum | circle | circle/square/hexagon |
-
-#### 7. `draw_tooltip` - 绘制提示框
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| title | string | "道具名称" | 标题 |
-| rarity | enum | rare | 稀有度 |
-
-#### 8. `draw_control_button` - 绘制控制按钮 🆕
-
-常用的UI控制按钮图标，如关闭、设置、播放等。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| button_type | enum | close/settings/play/pause/menu/home/refresh/back/plus/minus/check |
-| size | int | 按钮尺寸 |
-| style | enum | circle/square/none (背景样式) |
-
-#### 9. `draw_shape` - 绘制基础图形
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| shape_type | enum | rounded_rect/circle/polygon |
-| fill_color | [R,G,B,A] | 填充颜色 |
-| gradient | enum | none/horizontal/vertical/diagonal |
-
-#### 10. `generate_ui_kit` - 批量生成UI套件
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| theme | enum | default | default/rpg/scifi/cartoon/pixel |
-| output_dir | string | ui_kit | 输出目录 |
-
----
-
-### 🎨 画笔工具 (低级绘图API) 🆕
-
-让AI像"手"一样自由控制画笔，绘制任意自定义图形！
-
-#### 工作流程
-
-```
-1. pen_create_canvas  →  创建画布
-2. pen_* bindbindbindbd操作bindbd     →bindbd  绑定图形 (可重复)
-3. pen_save           →  保存图片
-```
-
-#### 画布操作
+### 画布管理
 
 | 工具 | 说明 |
 |------|------|
-| `pen_create_canvas` | 创建新画布，返回canvas_id用于后续操作 |
-| `pen_save` | 保存画布为图片文件 |
+| `create_canvas` | 创建画布（第一步） |
+| `save` | 保存画布为图片 |
 
-#### 基础绘图
-
-| 工具 | 说明 |
-|------|------|
-| `pen_line` | 画直线 (x1,y1 → x2,y2) |
-| `pen_lines` | 画多段折线，支持闭合 |
-| `pen_rect` | 画矩形 (填充/边框) |
-| `pen_ellipse` | 画椭圆/圆形 (填充/边框) |
-| `pen_polygon` | 画多边形 (填充/边框) |
-| `pen_arc` | 画弧线 (起始/结束角度) |
-| `pen_bezier` | 画贝塞尔曲线 (2-4个控制点) |
-| `pen_point` | 画点 |
-| `pen_text` | 写文字 |
-
-#### 预设图形
+### 线条类
 
 | 工具 | 说明 |
 |------|------|
-| `pen_draw_preset` | 绘制预设复杂图形：car(小汽车)、house(房子)、tree(树) |
+| `line` | 直线/虚线 |
+| `polyline` | 折线/多段线 |
+| `arc` | 弧线 |
+| `bezier` | 贝塞尔曲线 |
+| `wave` | 波浪线 |
 
-#### 画笔使用示例
+### 形状类
 
-```python
-# 1. 创建画布
-pen_create_canvas(width=300, height=200, bg_color=[135,206,235,255])
+| 工具 | 说明 |
+|------|------|
+| `rect` | 矩形/圆角矩形 |
+| `ellipse` | 椭圆/正圆 |
+| `polygon` | 多边形（三角形、六边形等） |
 
-# 2. 画地面
-pen_rect(x=0, y=160, width=300, height=40, fill_color=[100,180,100,255])
+### 图标类
 
-# 3. 画太阳
-pen_ellipse(x=240, y=20, width=40, height=40, fill_color=[255,220,100,255])
+| 工具 | 说明 |
+|------|------|
+| `icon` | 五角星、箭头 |
 
-# 4. 画房子和汽车
-pen_draw_preset(preset="house", x=30, y=40, scale=1.0)
-pen_draw_preset(preset="car", x=180, y=90, scale=0.8)
+### 辅助类
 
-# 5. 写文字
-pen_text(x=100, y=10, text="Hello World!", font_size=20)
+| 工具 | 说明 |
+|------|------|
+| `text` | 文字 |
 
-# 6. 保存
-pen_save(filename="my_scene.png")
+## 📖 工具详情
+
+### 1. `create_canvas` - 创建画布
+
+```
+width: 画布宽度（默认 200）
+height: 画布高度（默认 200）
+bg_color: 背景颜色 [R,G,B,A]（默认透明）
+canvas_id: 画布 ID（默认 "default"）
 ```
 
-## 🎯 使用场景
+### 2. `line` - 画直线
 
-- **游戏原型开发** - 快速搭建可玩Demo
-- **UI/UX设计** - 占位图辅助布局设计
-- **教学演示** - 游戏开发教程素材
-- **独立游戏** - 小团队快速迭代
+```
+x1, y1: 起点坐标
+x2, y2: 终点坐标
+color: 颜色 [R,G,B,A]
+width: 线宽
+dash: 虚线模式 [线段长, 间隔长]，如 [10, 5]
+```
+
+### 3. `polyline` - 画折线
+
+```
+points: 点坐标列表 [[x1,y1], [x2,y2], ...]
+closed: 是否闭合
+dash: 虚线模式
+```
+
+### 4. `arc` - 画弧线
+
+```
+x, y: 外接矩形左上角
+width, height: 外接矩形尺寸
+start_angle: 起始角度（度）
+end_angle: 结束角度（度）
+```
+
+### 5. `bezier` - 画贝塞尔曲线
+
+```
+points: 控制点列表
+  - 2 点 = 直线
+  - 3 点 = 二次曲线
+  - 4 点 = 三次曲线
+```
+
+### 6. `wave` - 画波浪线
+
+```
+x1, y1: 起点
+x2, y2: 终点
+amplitude: 振幅（默认 10）
+wavelength: 波长（默认 20）
+```
+
+### 7. `rect` - 画矩形
+
+```
+x, y: 左上角坐标
+width, height: 尺寸
+fill_color: 填充颜色
+border_color: 边框颜色
+radius: 圆角半径（0 为直角）
+```
+
+### 8. `ellipse` - 画椭圆
+
+```
+x, y: 外接矩形左上角
+width, height: 尺寸（相等则为正圆）
+fill_color: 填充颜色
+border_color: 边框颜色
+```
+
+### 9. `polygon` - 画多边形
+
+支持两种模式：
+
+**模式 1：自定义顶点**
+```
+points: [[x1,y1], [x2,y2], ...]
+```
+
+**模式 2：正多边形**
+```
+cx, cy: 中心坐标
+radius: 外接圆半径
+sides: 边数（3=三角形, 6=六边形）
+rotation: 旋转角度
+```
+
+### 10. `icon` - 画图标
+
+```
+icon_type: "star" 或 "arrow"
+cx, cy: 中心坐标
+size: 图标大小
+direction: 箭头方向（up/down/left/right）
+points: 星角数量（默认 5）
+```
+
+### 11. `text` - 写文字
+
+```
+x, y: 位置
+text: 文字内容
+color: 颜色
+font_size: 字体大小
+```
+
+### 12. `save` - 保存画布
+
+```
+filename: 文件名
+output_dir: 输出目录（可选）
+```
+
+## 🎨 使用示例
+
+### 画小汽车
+
+```
+1. create_canvas(width=200, height=100)
+2. polygon(points=车身坐标)        # 车身
+3. polygon(points=车顶坐标)        # 车顶
+4. polygon(points=车窗坐标)        # 车窗
+5. ellipse(x, y, 30, 30)           # 轮子
+6. save(filename="car.png")
+```
+
+### 画花朵
+
+```
+1. create_canvas(width=150, height=180)
+2. rect(茎)
+3. bezier(叶子弯曲)
+4. ellipse(花瓣 x 4)
+5. ellipse(花心)
+6. save(filename="flower.png")
+```
 
 ## 📄 License
 
-MIT License - 自由使用和修改！
+MIT License
 
 ---
 
-Made with ❤️ for Game Developers
+Made with ❤️ for Developers
