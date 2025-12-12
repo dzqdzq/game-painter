@@ -3,6 +3,7 @@
 > 提供 12 个核心绘图工具，通过组合可绑制任意复杂图形！
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![PyPI](https://img.shields.io/pypi/v/game-painter.svg)](https://pypi.org/project/game-painter/)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -17,6 +18,14 @@
 
 ### 安装
 
+从 PyPI 安装（推荐）：
+
+```bash
+pip install game-painter
+```
+
+或从源码安装：
+
 ```bash
 # 克隆项目
 git clone https://github.com/dzqdzq/game-painter.git
@@ -25,7 +34,7 @@ cd game-painter
 # 创建虚拟环境并安装依赖
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 直接使用
@@ -47,14 +56,31 @@ p.save("house.png")
 
 ## 🔌 MCP 工具配置
 
+安装完成后，在 Cursor 或 Claude Desktop 中配置 MCP 服务器。
+
 ### Cursor 配置
+
+打开 Cursor Settings，找到 MCP 设置，添加配置：
+
+```json
+{
+  "mcpServers": {
+    "game-painter": {
+      "command": "uvx",
+      "args": ["game-painter"]
+    }
+  }
+}
+```
+
+或者如果你使用的是虚拟环境：
 
 ```json
 {
   "mcpServers": {
     "game-painter": {
       "command": "python",
-      "args": ["/path/to/game-painter/server.py"]
+      "args": ["-m", "server"]
     }
   }
 }
@@ -62,16 +88,33 @@ p.save("house.png")
 
 ### Claude Desktop 配置
 
+编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或相应配置文件：
+
 ```json
 {
   "mcpServers": {
     "game-painter": {
-      "command": "/path/to/game-painter/.venv/bin/python",
-      "args": ["/path/to/game-painter/server.py"]
+      "command": "uvx",
+      "args": ["game-painter"]
     }
   }
 }
 ```
+
+或使用 Python 直接运行：
+
+```json
+{
+  "mcpServers": {
+    "game-painter": {
+      "command": "python",
+      "args": ["-m", "server"]
+    }
+  }
+}
+```
+
+> 💡 **提示**：确保安装 game-painter 的 Python 环境在系统 PATH 中，或使用完整的 Python 路径。
 
 ## 🛠️ 工具列表 (12 个)
 
