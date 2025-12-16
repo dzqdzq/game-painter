@@ -112,7 +112,7 @@ async def list_tools():
                         "items": {"type": "integer"},
                         "description": "虚线模式 [线段长, 间隔长]"
                     }
-                },
+                    },
                 "required": ["points"]
             }
         ),
@@ -565,10 +565,10 @@ async def call_tool(name: str, arguments: dict):
                 # 自定义顶点多边形
                 points = [tuple(p) for p in custom_points]
                 painter.pen_polygon(points, fill_color, border_color, border_width)
-                return [
-                    TextContent(type="text", text=f"✅ 多边形已绘制: {len(points)} 个顶点"),
-                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-                ]
+            return [
+                TextContent(type="text", text=f"✅ 多边形已绘制: {len(points)} 个顶点"),
+                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+            ]
             else:
                 # 正多边形
                 cx = arguments.get("cx")
@@ -584,11 +584,11 @@ async def call_tool(name: str, arguments: dict):
                 
                 side_names = {3: "三角形", 4: "正方形", 5: "五边形", 6: "六边形", 8: "八边形"}
                 shape_name = side_names.get(sides, f"{sides}边形")
-                
-                return [
+            
+            return [
                     TextContent(type="text", text=f"✅ 正{shape_name}已绘制: 中心({cx},{cy}) 半径{radius}"),
-                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-                ]
+                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+            ]
         
         # ========== 10. 图标 ==========
         elif name == "icon":
@@ -609,20 +609,20 @@ async def call_tool(name: str, arguments: dict):
                 star_points = arguments.get("points", 5)
                 painter.pen_star(cx, cy, size // 2, points=star_points, 
                                fill_color=fill_color, border_color=border_color, border_width=border_width)
-                return [
+            return [
                     TextContent(type="text", text=f"✅ 五角星已绘制: 中心({cx},{cy}) 大小{size}"),
-                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-                ]
-            
+                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+            ]
+        
             elif icon_type == "arrow":
                 direction = arguments.get("direction", "right")
                 painter.pen_arrow_shape(cx, cy, size, direction, fill_color, border_color, border_width)
                 dir_names = {"up": "上", "down": "下", "left": "左", "right": "右"}
-                return [
+            return [
                     TextContent(type="text", text=f"✅ {dir_names[direction]}箭头已绘制: 中心({cx},{cy}) 大小{size}"),
-                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-                ]
-            
+                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+            ]
+        
             else:
                 return [TextContent(type="text", text=f"❌ 未知图标类型: {icon_type}")]
         
