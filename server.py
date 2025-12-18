@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """
-🎨 GamePainter MCP Server (精简版)
+🎨 GamePainter MCP Server
 基础绘图工具服务 - 提供核心绘图能力
 
-通过12个基础工具可以组合绘制任意复杂图形
+通过16个基础工具可以组合绘制任意复杂图形和处理图片
 """
 
 import os
+import io
+import base64
 from typing import Optional, List
+from urllib.request import urlopen
+from urllib.parse import urlparse
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, ImageContent
 
+from PIL import Image, ImageDraw
+from rembg import remove
 from painter import GamePainter
 
 
@@ -33,9 +39,76 @@ def get_output_path(filename: str, output_dir: Optional[str] = None) -> str:
     return os.path.join(dir_path, filename)
 
 
+def load_image_from_source(image_path: Optional[str] = None, 
+                           image_base64: Optional[str] = None,
+                           image_url: Optional[str] = None) -> Image.Image:
+    """
+    从多种来源加载图片：文件路径、base64数据或https URL
+    
+    Args:
+        image_path: 图片文件路径
+        image_base64: 图片的base64编码数据
+        image_url: 图片的https URL（必须包含图片后缀）
+    
+    Returns:
+        PIL Image对象
+    
+    Raises:
+        ValueError: 参数错误或URL格式错误
+        Exception: 加载图片失败
+    """
+    # 检查参数：只能提供一个
+    provided = [p for p in [image_path, image_base64, image_url] if p is not None]
+    if len(provided) != 1:
+        raise ValueError("必须提供且仅提供一个参数：image_path、image_base64 或 image_url")
+    
+    try:
+        if image_path:
+            # 从文件路径加载
+            if not os.path.exists(image_path):
+                raise FileNotFoundError(f"图片文件不存在: {image_path}")
+            return Image.open(image_path)
+        
+        elif image_base64:
+            # 从 base64 加载
+            base64_data = image_base64
+            # 处理 data URI 格式：data:image/png;base64,xxx
+            if base64_data.startswith("data:"):
+                # 提取 base64 部分
+                base64_data = base64_data.split(",", 1)[1]
+            
+            # 解码 base64
+            image_bytes = base64.b64decode(base64_data)
+            return Image.open(io.BytesIO(image_bytes))
+        
+        elif image_url:
+            # 从 URL 加载
+            parsed = urlparse(image_url)
+            
+            # 验证必须是 https
+            if parsed.scheme != "https":
+                raise ValueError("URL 必须使用 https 协议")
+            
+            # 验证必须有图片后缀
+            path = parsed.path.lower()
+            valid_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
+            if not any(path.endswith(ext) for ext in valid_extensions):
+                raise ValueError(f"URL 必须包含图片后缀（支持: {', '.join(valid_extensions)}）")
+            
+            # 下载图片
+            with urlopen(image_url) as response:
+                image_bytes = response.read()
+                return Image.open(io.BytesIO(image_bytes))
+    
+    except Exception as e:
+        raise Exception(f"加载图片失败: {str(e)}")
+
+
+
+
 @server.list_tools()
 async def list_tools():
-    """列出所有可用的绘图工具（精简版 - 12个核心工具）"""
+    """列出所有可用的绘图工具（16个核心工具）"""
     return [
         # ========== 1. 创建画布 ==========
         Tool(
@@ -350,7 +423,60 @@ async def list_tools():
             }
         ),
         
-        # ========== 12. 保存 ==========
+        # ========== 12. 清除背景 ==========
+        Tool(
+            name="remove_background",
+            description="使用 AI 模型智能清除图片背景，使其变为透明。基于深度学习模型，能准确识别主体和背景，适用于各种复杂背景（纯色、渐变、图片等）。支持从文件路径、base64数据或https URL加载图片。首次使用会自动下载模型文件。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "string",
+                        "description": "图片文件路径。如果提供此参数，将从文件加载图片。不能与 image_base64 或 image_url 参数同时提供。"
+                    },
+                    "image_base64": {
+                        "type": "string",
+                        "description": "图片的 base64 编码数据。可以是纯 base64 字符串，也可以是 data URI 格式（data:image/png;base64,xxx）。不能与 image_path 或 image_url 参数同时提供。"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "图片的 https URL。URL 必须包含图片后缀（.png, .jpg, .jpeg, .gif, .bmp, .webp）。不能与 image_path 或 image_base64 参数同时提供。"
+                    },
+                    "alpha_matting": {
+                        "type": "boolean",
+                        "description": "是否使用 alpha matting 技术来改善边缘质量。对于有细毛发、透明物体或复杂边缘的图片，建议启用。",
+                        "default": False
+                    },
+                    "alpha_matting_foreground_threshold": {
+                        "type": "integer",
+                        "description": "Alpha matting 前景阈值（0-255）。值越大，更多区域被视为前景。",
+                        "default": 240
+                    },
+                    "alpha_matting_background_threshold": {
+                        "type": "integer",
+                        "description": "Alpha matting 背景阈值（0-255）。值越小，更多区域被视为背景。",
+                        "default": 10
+                    },
+                    "alpha_matting_erode_size": {
+                        "type": "integer",
+                        "description": "Alpha matting 腐蚀大小。用于细化边缘区域，值越大边缘处理越精细。",
+                        "default": 10
+                    },
+                    "post_process_mask": {
+                        "type": "boolean",
+                        "description": "是否对掩码进行后处理，可以改善边缘质量。",
+                        "default": False
+                    },
+                    "bgcolor": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "description": "背景颜色 [R,G,B,A]。如果提供，将用此颜色替换透明背景。不设置则保持透明。"
+                    }
+                }
+            }
+        ),
+        
+        # ========== 13. 保存 ==========
         Tool(
             name="save",
             description="保存画布为图片文件。这是完成绘制后必须调用的步骤。",
@@ -361,6 +487,102 @@ async def list_tools():
                     "filename": {"type": "string", "description": "保存的文件名", "default": "canvas.png"},
                     "output_dir": {"type": "string", "description": "输出目录路径(可选)"}
                 }
+            }
+        ),
+        
+        # ========== 14. 缩小图片 ==========
+        Tool(
+            name="resize_image",
+            description="缩小图片。支持从文件路径、base64 数据或 https URL 加载图片，指定目标宽度或高度进行等比缩放。使用高质量重采样算法保持图片质量。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "string",
+                        "description": "图片文件路径。如果提供此参数，将从文件加载图片。不能与 image_base64 或 image_url 参数同时提供。"
+                    },
+                    "image_base64": {
+                        "type": "string",
+                        "description": "图片的 base64 编码数据。可以是纯 base64 字符串，也可以是 data URI 格式（data:image/png;base64,xxx）。不能与 image_path 或 image_url 参数同时提供。"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "图片的 https URL。URL 必须包含图片后缀（.png, .jpg, .jpeg, .gif, .bmp, .webp）。不能与 image_path 或 image_base64 参数同时提供。"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "目标宽度（像素）。提供宽度时，高度将按比例自动缩放。不能与 height 参数同时提供。"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "目标高度（像素）。提供高度时，宽度将按比例自动缩放。不能与 width 参数同时提供。"
+                    }
+                },
+                "required": []
+            }
+        ),
+        
+        # ========== 15. 自动裁切透明区域 ==========
+        Tool(
+            name="auto_crop_transparent",
+            description="自动裁切PNG图片中的透明区域，只保留有内容的部分。适用于清除背景后的图片，可以去除四周的透明边缘，减小图片尺寸。只支持PNG格式。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "string",
+                        "description": "图片文件路径。如果提供此参数，将从文件加载图片。不能与 image_base64 或 image_url 参数同时提供。"
+                    },
+                    "image_base64": {
+                        "type": "string",
+                        "description": "图片的 base64 编码数据。可以是纯 base64 字符串，也可以是 data URI 格式（data:image/png;base64,xxx）。不能与 image_path 或 image_url 参数同时提供。"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "图片的 https URL。URL 必须是PNG格式，并包含.png后缀。不能与 image_path 或 image_base64 参数同时提供。"
+                    }
+                },
+                "required": []
+            }
+        ),
+        
+        # ========== 16. 指定区域裁切 ==========
+        Tool(
+            name="crop_region",
+            description="裁切图片的指定区域。支持所有图片格式。可以精确指定裁切的位置和大小。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "string",
+                        "description": "图片文件路径。如果提供此参数，将从文件加载图片。不能与 image_base64 或 image_url 参数同时提供。"
+                    },
+                    "image_base64": {
+                        "type": "string",
+                        "description": "图片的 base64 编码数据。可以是纯 base64 字符串，也可以是 data URI 格式（data:image/png;base64,xxx）。不能与 image_path 或 image_url 参数同时提供。"
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "图片的 https URL。URL 必须包含图片后缀（.png, .jpg, .jpeg, .gif, .bmp, .webp）。不能与 image_path 或 image_base64 参数同时提供。"
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "裁切区域的左上角X坐标（像素）"
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "裁切区域的左上角Y坐标（像素）"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "裁切区域的宽度（像素）"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "裁切区域的高度（像素）"
+                    }
+                },
+                "required": ["x", "y", "width", "height"]
             }
         )
     ]
@@ -565,10 +787,10 @@ async def call_tool(name: str, arguments: dict):
                 # 自定义顶点多边形
                 points = [tuple(p) for p in custom_points]
                 painter.pen_polygon(points, fill_color, border_color, border_width)
-            return [
-                TextContent(type="text", text=f"✅ 多边形已绘制: {len(points)} 个顶点"),
-                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-            ]
+                return [
+                    TextContent(type="text", text=f"✅ 多边形已绘制: {len(points)} 个顶点"),
+                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+                ]
             else:
                 # 正多边形
                 cx = arguments.get("cx")
@@ -584,11 +806,11 @@ async def call_tool(name: str, arguments: dict):
                 
                 side_names = {3: "三角形", 4: "正方形", 5: "五边形", 6: "六边形", 8: "八边形"}
                 shape_name = side_names.get(sides, f"{sides}边形")
-            
-            return [
+                
+                return [
                     TextContent(type="text", text=f"✅ 正{shape_name}已绘制: 中心({cx},{cy}) 半径{radius}"),
-                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-            ]
+                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+                ]
         
         # ========== 10. 图标 ==========
         elif name == "icon":
@@ -609,20 +831,20 @@ async def call_tool(name: str, arguments: dict):
                 star_points = arguments.get("points", 5)
                 painter.pen_star(cx, cy, size // 2, points=star_points, 
                                fill_color=fill_color, border_color=border_color, border_width=border_width)
-            return [
+                return [
                     TextContent(type="text", text=f"✅ 五角星已绘制: 中心({cx},{cy}) 大小{size}"),
-                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-            ]
-        
+                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+                ]
+            
             elif icon_type == "arrow":
                 direction = arguments.get("direction", "right")
                 painter.pen_arrow_shape(cx, cy, size, direction, fill_color, border_color, border_width)
                 dir_names = {"up": "上", "down": "下", "left": "左", "right": "右"}
-            return [
+                return [
                     TextContent(type="text", text=f"✅ {dir_names[direction]}箭头已绘制: 中心({cx},{cy}) 大小{size}"),
-                ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
-            ]
-        
+                    ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
+                ]
+            
             else:
                 return [TextContent(type="text", text=f"❌ 未知图标类型: {icon_type}")]
         
@@ -646,7 +868,67 @@ async def call_tool(name: str, arguments: dict):
                 ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
             ]
         
-        # ========== 12. 保存 ==========
+        # ========== 12. 清除背景 ==========
+        elif name == "remove_background":
+            try:
+                # 加载图片
+                image_path = arguments.get("image_path")
+                image_base64 = arguments.get("image_base64")
+                image_url = arguments.get("image_url")
+                
+                img = load_image_from_source(
+                    image_path=image_path,
+                    image_base64=image_base64,
+                    image_url=image_url
+                )
+                
+                # 确保图片是RGB或RGBA模式（rembg支持这两种）
+                if img.mode not in ("RGB", "RGBA"):
+                    img = img.convert("RGB")
+                
+                # 获取参数
+                alpha_matting = arguments.get("alpha_matting", False)
+                alpha_matting_foreground_threshold = arguments.get("alpha_matting_foreground_threshold", 240)
+                alpha_matting_background_threshold = arguments.get("alpha_matting_background_threshold", 10)
+                alpha_matting_erode_size = arguments.get("alpha_matting_erode_size", 10)
+                post_process_mask = arguments.get("post_process_mask", False)
+                bgcolor = tuple(arguments.get("bgcolor")) if arguments.get("bgcolor") else None
+                
+                # 直接调用 rembg 的 remove 函数
+                processed_image = remove(
+                    img,
+                    alpha_matting=alpha_matting,
+                    alpha_matting_foreground_threshold=alpha_matting_foreground_threshold,
+                    alpha_matting_background_threshold=alpha_matting_background_threshold,
+                    alpha_matting_erode_size=alpha_matting_erode_size,
+                    post_process_mask=post_process_mask,
+                    bgcolor=bgcolor
+                )
+                
+                # 转换为 base64
+                buffer = io.BytesIO()
+                processed_image.save(buffer, format="PNG")
+                img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                params_info = []
+                if alpha_matting:
+                    params_info.append(f"alpha_matting=True")
+                if post_process_mask:
+                    params_info.append(f"post_process_mask=True")
+                if bgcolor:
+                    params_info.append(f"bgcolor={bgcolor}")
+                
+                params_text = f" ({', '.join(params_info)})" if params_info else ""
+                img_size = f"{processed_image.width}x{processed_image.height}"
+                
+                return [
+                    TextContent(type="text", text=f"✅ 背景已清除（使用 AI 模型）{params_text}\n图片尺寸: {img_size}"),
+                    ImageContent(type="image", data=img_base64, mimeType="image/png")
+                ]
+            except Exception as e:
+                return [TextContent(type="text", text=f"❌ 清除背景失败: {str(e)}")]
+        
+        # ========== 13. 保存 ==========
         elif name == "save":
             canvas_id = arguments.get("canvas_id", "default")
             if canvas_id not in canvas_storage:
@@ -663,6 +945,153 @@ async def call_tool(name: str, arguments: dict):
                 TextContent(type="text", text=f"✅ 画布已保存: {file_path}\n尺寸: {painter.width}x{painter.height}"),
                 ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
             ]
+        
+        # ========== 14. 缩小图片 ==========
+        elif name == "resize_image":
+            try:
+                # 加载图片
+                image_path = arguments.get("image_path")
+                image_base64 = arguments.get("image_base64")
+                image_url = arguments.get("image_url")
+                width = arguments.get("width")
+                height = arguments.get("height")
+                
+                # 检查尺寸参数：必须提供 width 或 height 其中一个，不能同时提供
+                if width is not None and height is not None:
+                    return [TextContent(type="text", text="❌ 不能同时提供 width 和 height 参数，只能提供其中一个以避免图片变形")]
+                
+                if width is None and height is None:
+                    return [TextContent(type="text", text="❌ 必须提供 width 或 height 参数之一")]
+                
+                # 加载图片
+                img = load_image_from_source(
+                    image_path=image_path,
+                    image_base64=image_base64,
+                    image_url=image_url
+                )
+                
+                original_width, original_height = img.size
+                
+                # 计算目标尺寸（等比缩放）
+                if width is not None:
+                    # 只提供宽度，按比例缩放高度
+                    ratio = width / original_width
+                    new_width = width
+                    new_height = int(original_height * ratio)
+                else:  # height is not None
+                    # 只提供高度，按比例缩放宽度
+                    ratio = height / original_height
+                    new_width = int(original_width * ratio)
+                    new_height = height
+                
+                # 缩小图片（使用高质量重采样算法）
+                resized_img = img.resize((new_width, new_height), resample=Image.Resampling.LANCZOS)
+                
+                # 转换为 base64
+                buffer = io.BytesIO()
+                resized_img.save(buffer, format="PNG")
+                img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                return [
+                    ImageContent(type="image", data=img_base64, mimeType="image/png")
+                ]
+            except Exception as e:
+                return [TextContent(type="text", text=f"❌ 缩放图片失败: {str(e)}")]
+        
+        # ========== 15. 自动裁切透明区域 ==========
+        elif name == "auto_crop_transparent":
+            try:
+                # 加载图片
+                image_path = arguments.get("image_path")
+                image_base64 = arguments.get("image_base64")
+                image_url = arguments.get("image_url")
+                
+                img = load_image_from_source(
+                    image_path=image_path,
+                    image_base64=image_base64,
+                    image_url=image_url
+                )
+                
+                # 检查是否是PNG格式（需要有alpha通道）
+                if img.mode != "RGBA":
+                    # 尝试转换为RGBA
+                    if img.mode == "RGB":
+                        return [TextContent(type="text", text="❌ 图片没有透明通道，无法自动裁切透明区域。此工具仅支持PNG格式的透明图片。")]
+                    img = img.convert("RGBA")
+                
+                # 获取图片的alpha通道
+                alpha = img.split()[3]
+                
+                # 获取非透明像素的边界框
+                bbox = alpha.getbbox()
+                
+                if bbox is None:
+                    return [TextContent(type="text", text="❌ 图片完全透明，无法裁切")]
+                
+                # 裁切图片
+                cropped_img = img.crop(bbox)
+                
+                # 转换为 base64
+                buffer = io.BytesIO()
+                cropped_img.save(buffer, format="PNG")
+                img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                original_size = f"{img.width}x{img.height}"
+                cropped_size = f"{cropped_img.width}x{cropped_img.height}"
+                
+                return [
+                    TextContent(type="text", text=f"✅ 透明区域已自动裁切\n原始尺寸: {original_size}\n裁切后尺寸: {cropped_size}\n裁切区域: x={bbox[0]}, y={bbox[1]}, width={bbox[2]-bbox[0]}, height={bbox[3]-bbox[1]}"),
+                    ImageContent(type="image", data=img_base64, mimeType="image/png")
+                ]
+            except Exception as e:
+                return [TextContent(type="text", text=f"❌ 自动裁切失败: {str(e)}")]
+        
+        # ========== 16. 指定区域裁切 ==========
+        elif name == "crop_region":
+            try:
+                # 加载图片
+                image_path = arguments.get("image_path")
+                image_base64 = arguments.get("image_base64")
+                image_url = arguments.get("image_url")
+                
+                img = load_image_from_source(
+                    image_path=image_path,
+                    image_base64=image_base64,
+                    image_url=image_url
+                )
+                
+                # 获取裁切参数
+                x = arguments.get("x")
+                y = arguments.get("y")
+                width = arguments.get("width")
+                height = arguments.get("height")
+                
+                # 验证裁切区域是否在图片范围内
+                if x < 0 or y < 0:
+                    return [TextContent(type="text", text="❌ 裁切区域的起始坐标不能为负数")]
+                
+                if x + width > img.width or y + height > img.height:
+                    return [TextContent(type="text", text=f"❌ 裁切区域超出图片范围。图片尺寸: {img.width}x{img.height}，裁切区域: x={x}, y={y}, width={width}, height={height}")]
+                
+                # 裁切图片（PIL的crop方法使用 (left, upper, right, lower) 格式）
+                cropped_img = img.crop((x, y, x + width, y + height))
+                
+                # 转换为 base64
+                buffer = io.BytesIO()
+                # 根据原图格式保存
+                img_format = img.format or "PNG"
+                cropped_img.save(buffer, format=img_format)
+                img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                
+                original_size = f"{img.width}x{img.height}"
+                cropped_size = f"{cropped_img.width}x{cropped_img.height}"
+                
+                return [
+                    TextContent(type="text", text=f"✅ 图片已裁切\n原始尺寸: {original_size}\n裁切后尺寸: {cropped_size}\n裁切区域: x={x}, y={y}, width={width}, height={height}"),
+                    ImageContent(type="image", data=img_base64, mimeType=f"image/{img_format.lower()}")
+                ]
+            except Exception as e:
+                return [TextContent(type="text", text=f"❌ 裁切图片失败: {str(e)}")]
         
         else:
             return [TextContent(type="text", text=f"❌ 未知工具: {name}")]

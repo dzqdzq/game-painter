@@ -94,7 +94,7 @@ class GamePainter:
                 ey = y1 + uy * (pos + seg_len)
                 self.draw.line([(int(sx), int(sy)), (int(ex), int(ey))], fill=color, width=width)
                 pos += dash_len
-        else:
+            else:
                 pos += gap_len
             draw_segment = not draw_segment
     
@@ -122,7 +122,7 @@ class GamePainter:
         
         if dash is None:
             self.draw.line([(x1, y1), (x2, y2)], fill=color, width=width)
-            else:
+        else:
             self._draw_dashed_line(x1, y1, x2, y2, color, width, dash)
     
     def pen_lines(
@@ -258,7 +258,7 @@ class GamePainter:
             points.append((int(cx), int(cy)))
         
         if len(points) >= 2:
-        self.draw.line(points, fill=color, width=width, joint="curve")
+            self.draw.line(points, fill=color, width=width, joint="curve")
     
     # ==================== 形状类 ====================
     
