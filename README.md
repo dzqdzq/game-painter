@@ -25,9 +25,6 @@
 ```bash
 # 基础安装（16个核心绘图工具）
 pip install game-painter
-
-# 完整安装（含 AI 生图功能）
-pip install game-painter[ai]
 ```
 
 或从源码安装：
