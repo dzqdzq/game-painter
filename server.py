@@ -3,7 +3,7 @@
 🎨 GamePainter MCP Server
 基础绘图工具服务 - 提供核心绘图能力
 
-通过16个基础工具可以组合绘制任意复杂图形和处理图片
+通过15个基础工具可以组合绘制任意复杂图形和处理图片
 """
 
 import os
@@ -19,6 +19,7 @@ from mcp.types import Tool, TextContent, ImageContent
 from PIL import Image, ImageDraw
 from rembg import remove
 from painter import GamePainter
+from ai_generate import get_ai_generate_tool, handle_generate_image, is_ai_generate_enabled
 
 
 # 创建 MCP 服务器
@@ -108,8 +109,8 @@ def load_image_from_source(image_path: Optional[str] = None,
 
 @server.list_tools()
 async def list_tools():
-    """列出所有可用的绘图工具（16个核心工具）"""
-    return [
+    """列出所有可用的绘图工具（16个核心工具 + 可选AI生图）"""
+    tools = [
         # ========== 1. 创建画布 ==========
         Tool(
             name="create_canvas",
@@ -546,10 +547,10 @@ async def list_tools():
             }
         ),
         
-        # ========== 16. 指定区域裁切 ==========
+        # ========== 16. 扩充透明区域 ==========
         Tool(
             name="crop_region",
-            description="裁切图片的指定区域。支持所有图片格式。可以精确指定裁切的位置和大小。",
+            description="将图片扩充到指定大小，周围填充透明区域。可以通过偏移量控制原图在新画布中的位置。适用于需要统一尺寸或添加透明边距的场景。",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -565,27 +566,36 @@ async def list_tools():
                         "type": "string",
                         "description": "图片的 https URL。URL 必须包含图片后缀（.png, .jpg, .jpeg, .gif, .bmp, .webp）。不能与 image_path 或 image_base64 参数同时提供。"
                     },
-                    "x": {
-                        "type": "integer",
-                        "description": "裁切区域的左上角X坐标（像素）"
-                    },
-                    "y": {
-                        "type": "integer",
-                        "description": "裁切区域的左上角Y坐标（像素）"
-                    },
                     "width": {
                         "type": "integer",
-                        "description": "裁切区域的宽度（像素）"
+                        "description": "目标宽度（像素）。必须大于原图宽度。"
                     },
                     "height": {
                         "type": "integer",
-                        "description": "裁切区域的高度（像素）"
+                        "description": "目标高度（像素）。必须大于原图高度。"
+                    },
+                    "x_offset": {
+                        "type": "integer",
+                        "description": "水平偏移量（像素）。正值向右偏移，负值向左偏移。默认为0（水平居中）。",
+                        "default": 0
+                    },
+                    "y_offset": {
+                        "type": "integer",
+                        "description": "垂直偏移量（像素）。正值向上偏移，负值向下偏移。默认为0（垂直居中）。",
+                        "default": 0
                     }
                 },
-                "required": ["x", "y", "width", "height"]
+                "required": ["width", "height"]
             }
         )
     ]
+    
+    # 动态添加 AI 生图工具（如果启用）
+    ai_tool = get_ai_generate_tool()
+    if ai_tool is not None:
+        tools.append(ai_tool)
+    
+    return tools
 
 
 @server.call_tool()
@@ -1046,52 +1056,78 @@ async def call_tool(name: str, arguments: dict):
             except Exception as e:
                 return [TextContent(type="text", text=f"❌ 自动裁切失败: {str(e)}")]
         
-        # ========== 16. 指定区域裁切 ==========
+        # ========== 16. 扩充透明区域 ==========
         elif name == "crop_region":
             try:
                 # 加载图片
                 image_path = arguments.get("image_path")
                 image_base64 = arguments.get("image_base64")
                 image_url = arguments.get("image_url")
+                target_width = arguments.get("width")
+                target_height = arguments.get("height")
+                x_offset = arguments.get("x_offset", 0)
+                y_offset = arguments.get("y_offset", 0)
                 
+                # 验证必需参数
+                if target_width is None or target_height is None:
+                    return [TextContent(type="text", text="❌ 必须提供 width 和 height 参数")]
+                
+                # 加载图片
                 img = load_image_from_source(
                     image_path=image_path,
                     image_base64=image_base64,
                     image_url=image_url
                 )
                 
-                # 获取裁切参数
-                x = arguments.get("x")
-                y = arguments.get("y")
-                width = arguments.get("width")
-                height = arguments.get("height")
+                # 确保图片有透明通道
+                if img.mode != "RGBA":
+                    img = img.convert("RGBA")
                 
-                # 验证裁切区域是否在图片范围内
-                if x < 0 or y < 0:
-                    return [TextContent(type="text", text="❌ 裁切区域的起始坐标不能为负数")]
+                orig_width, orig_height = img.size
                 
-                if x + width > img.width or y + height > img.height:
-                    return [TextContent(type="text", text=f"❌ 裁切区域超出图片范围。图片尺寸: {img.width}x{img.height}，裁切区域: x={x}, y={y}, width={width}, height={height}")]
+                # 验证目标尺寸必须大于原图
+                if target_width < orig_width:
+                    return [TextContent(type="text", text=f"❌ 目标宽度 ({target_width}px) 必须大于或等于原图宽度 ({orig_width}px)")]
+                if target_height < orig_height:
+                    return [TextContent(type="text", text=f"❌ 目标高度 ({target_height}px) 必须大于或等于原图高度 ({orig_height}px)")]
                 
-                # 裁切图片（PIL的crop方法使用 (left, upper, right, lower) 格式）
-                cropped_img = img.crop((x, y, x + width, y + height))
+                # 创建透明背景的新图片
+                new_img = Image.new("RGBA", (target_width, target_height), (0, 0, 0, 0))
+                
+                # 计算原图在新图中的位置（默认居中）
+                # x_offset 正值向右，负值向左
+                # y_offset 正值向上，负值向下（所以要用减法）
+                x_pos = (target_width - orig_width) // 2 + x_offset
+                y_pos = (target_height - orig_height) // 2 - y_offset
+                
+                # 验证位置是否合理（原图不能超出边界）
+                if x_pos < 0 or x_pos + orig_width > target_width:
+                    return [TextContent(type="text", text=f"❌ x_offset ({x_offset}) 导致图片超出边界。可用范围: [{-(target_width - orig_width)//2}, {(target_width - orig_width)//2}]")]
+                if y_pos < 0 or y_pos + orig_height > target_height:
+                    return [TextContent(type="text", text=f"❌ y_offset ({y_offset}) 导致图片超出边界。可用范围: [{-(target_height - orig_height)//2}, {(target_height - orig_height)//2}]")]
+                
+                # 将原图粘贴到新图的指定位置
+                new_img.paste(img, (x_pos, y_pos), img)
                 
                 # 转换为 base64
                 buffer = io.BytesIO()
-                # 根据原图格式保存
-                img_format = img.format or "PNG"
-                cropped_img.save(buffer, format=img_format)
+                new_img.save(buffer, format="PNG")
                 img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
                 
-                original_size = f"{img.width}x{img.height}"
-                cropped_size = f"{cropped_img.width}x{cropped_img.height}"
+                offset_info = ""
+                if x_offset != 0 or y_offset != 0:
+                    offset_info = f"\n偏移: x={x_offset}px, y={y_offset}px"
                 
                 return [
-                    TextContent(type="text", text=f"✅ 图片已裁切\n原始尺寸: {original_size}\n裁切后尺寸: {cropped_size}\n裁切区域: x={x}, y={y}, width={width}, height={height}"),
-                    ImageContent(type="image", data=img_base64, mimeType=f"image/{img_format.lower()}")
+                    TextContent(type="text", text=f"✅ 图片已扩充到透明背景\n原始尺寸: {orig_width}x{orig_height}\n目标尺寸: {target_width}x{target_height}\n原图位置: ({x_pos}, {y_pos}){offset_info}"),
+                    ImageContent(type="image", data=img_base64, mimeType="image/png")
                 ]
             except Exception as e:
-                return [TextContent(type="text", text=f"❌ 裁切图片失败: {str(e)}")]
+                return [TextContent(type="text", text=f"❌ 扩充透明区域失败: {str(e)}")]
+        
+        # ========== 17. AI 生成图片 ==========
+        elif name == "generate_image":
+            return await handle_generate_image(arguments)
         
         else:
             return [TextContent(type="text", text=f"❌ 未知工具: {name}")]
