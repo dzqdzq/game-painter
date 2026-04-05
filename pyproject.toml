@@ -1,14 +1,14 @@
 [project]
 name = "game-painter"
 version = "2.2.5"
-description = "🎨 基础绘图工具 - 17个核心MCP绘图工具（含AI生图）"
+description = "🎨 基础绘图工具 - 15个核心MCP绘图工具"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
     { name = "dzqdzq" }
 ]
-keywords = ["mcp", "dzqdzq", "graphics", "drawing", 'AI生图', 'painter']
+keywords = ["mcp", "dzqdzq", "graphics", "drawing", "painter"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -24,10 +24,6 @@ classifiers = [
 dependencies = [
     "Pillow>=10.0.0",
     "mcp>=1.0.0",
-    "rembg>=2.0.0",
-    "onnxruntime>=1.20.0",
-    "numba>=0.63.0",
-    "volcengine-python-sdk>=4.0.0",
 ]
 
 [project.scripts]
@@ -39,13 +35,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
-only-include = ["painter.py", "server.py", "ai_generate.py"]
+only-include = ["painter.py", "server.py"]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "painter.py",
     "server.py",
-    "ai_generate.py",
     "README.md",
     "pyproject.toml",
 ]

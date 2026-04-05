@@ -17,9 +17,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, ImageContent
 
 from PIL import Image, ImageDraw
-from rembg import remove
 from painter import GamePainter
-from ai_generate import get_ai_generate_tool, handle_generate_image, is_ai_generate_enabled
 
 
 # 创建 MCP 服务器
@@ -424,60 +422,7 @@ async def list_tools():
             }
         ),
         
-        # ========== 12. 清除背景 ==========
-        Tool(
-            name="remove_background",
-            description="使用 AI 模型智能清除图片背景，使其变为透明。基于深度学习模型，能准确识别主体和背景，适用于各种复杂背景（纯色、渐变、图片等）。支持从文件路径、base64数据或https URL加载图片。首次使用会自动下载模型文件。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "image_path": {
-                        "type": "string",
-                        "description": "图片文件路径。如果提供此参数，将从文件加载图片。不能与 image_base64 或 image_url 参数同时提供。"
-                    },
-                    "image_base64": {
-                        "type": "string",
-                        "description": "图片的 base64 编码数据。可以是纯 base64 字符串，也可以是 data URI 格式（data:image/png;base64,xxx）。不能与 image_path 或 image_url 参数同时提供。"
-                    },
-                    "image_url": {
-                        "type": "string",
-                        "description": "图片的 https URL。URL 必须包含图片后缀（.png, .jpg, .jpeg, .gif, .bmp, .webp）。不能与 image_path 或 image_base64 参数同时提供。"
-                    },
-                    "alpha_matting": {
-                        "type": "boolean",
-                        "description": "是否使用 alpha matting 技术来改善边缘质量。对于有细毛发、透明物体或复杂边缘的图片，建议启用。",
-                        "default": False
-                    },
-                    "alpha_matting_foreground_threshold": {
-                        "type": "integer",
-                        "description": "Alpha matting 前景阈值（0-255）。值越大，更多区域被视为前景。",
-                        "default": 240
-                    },
-                    "alpha_matting_background_threshold": {
-                        "type": "integer",
-                        "description": "Alpha matting 背景阈值（0-255）。值越小，更多区域被视为背景。",
-                        "default": 10
-                    },
-                    "alpha_matting_erode_size": {
-                        "type": "integer",
-                        "description": "Alpha matting 腐蚀大小。用于细化边缘区域，值越大边缘处理越精细。",
-                        "default": 10
-                    },
-                    "post_process_mask": {
-                        "type": "boolean",
-                        "description": "是否对掩码进行后处理，可以改善边缘质量。",
-                        "default": False
-                    },
-                    "bgcolor": {
-                        "type": "array",
-                        "items": {"type": "integer"},
-                        "description": "背景颜色 [R,G,B,A]。如果提供，将用此颜色替换透明背景。不设置则保持透明。"
-                    }
-                }
-            }
-        ),
-        
-        # ========== 13. 保存 ==========
+        # ========== 12. 保存 ==========
         Tool(
             name="save",
             description="保存画布为图片文件。这是完成绘制后必须调用的步骤。",
@@ -491,7 +436,7 @@ async def list_tools():
             }
         ),
         
-        # ========== 14. 缩小图片 ==========
+        # ========== 13. 缩小图片 ==========
         Tool(
             name="resize_image",
             description="缩小图片。支持从文件路径、base64 数据或 https URL 加载图片，指定目标宽度或高度进行等比缩放。使用高质量重采样算法保持图片质量。",
@@ -523,10 +468,10 @@ async def list_tools():
             }
         ),
         
-        # ========== 15. 自动裁切透明区域 ==========
+        # ========== 14. 自动裁切透明区域 ==========
         Tool(
             name="auto_crop_transparent",
-            description="自动裁切PNG图片中的透明区域，只保留有内容的部分。适用于清除背景后的图片，可以去除四周的透明边缘，减小图片尺寸。只支持PNG格式。",
+            description="自动裁切PNG图片中的透明区域，只保留有内容的部分。可去除四周的透明边缘，减小图片尺寸。只支持PNG格式。",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -547,7 +492,7 @@ async def list_tools():
             }
         ),
         
-        # ========== 16. 扩充透明区域 ==========
+        # ========== 15. 扩充透明区域 ==========
         Tool(
             name="crop_region",
             description="将图片扩充到指定大小，周围填充透明区域。可以通过偏移量控制原图在新画布中的位置。适用于需要统一尺寸或添加透明边距的场景。",
@@ -589,11 +534,6 @@ async def list_tools():
             }
         )
     ]
-    
-    # 动态添加 AI 生图工具（如果启用）
-    ai_tool = get_ai_generate_tool()
-    if ai_tool is not None:
-        tools.append(ai_tool)
     
     return tools
 
@@ -878,67 +818,7 @@ async def call_tool(name: str, arguments: dict):
                 ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
             ]
         
-        # ========== 12. 清除背景 ==========
-        elif name == "remove_background":
-            try:
-                # 加载图片
-                image_path = arguments.get("image_path")
-                image_base64 = arguments.get("image_base64")
-                image_url = arguments.get("image_url")
-                
-                img = load_image_from_source(
-                    image_path=image_path,
-                    image_base64=image_base64,
-                    image_url=image_url
-                )
-                
-                # 确保图片是RGB或RGBA模式（rembg支持这两种）
-                if img.mode not in ("RGB", "RGBA"):
-                    img = img.convert("RGB")
-                
-                # 获取参数
-                alpha_matting = arguments.get("alpha_matting", False)
-                alpha_matting_foreground_threshold = arguments.get("alpha_matting_foreground_threshold", 240)
-                alpha_matting_background_threshold = arguments.get("alpha_matting_background_threshold", 10)
-                alpha_matting_erode_size = arguments.get("alpha_matting_erode_size", 10)
-                post_process_mask = arguments.get("post_process_mask", False)
-                bgcolor = tuple(arguments.get("bgcolor")) if arguments.get("bgcolor") else None
-                
-                # 直接调用 rembg 的 remove 函数
-                processed_image = remove(
-                    img,
-                    alpha_matting=alpha_matting,
-                    alpha_matting_foreground_threshold=alpha_matting_foreground_threshold,
-                    alpha_matting_background_threshold=alpha_matting_background_threshold,
-                    alpha_matting_erode_size=alpha_matting_erode_size,
-                    post_process_mask=post_process_mask,
-                    bgcolor=bgcolor
-                )
-                
-                # 转换为 base64
-                buffer = io.BytesIO()
-                processed_image.save(buffer, format="PNG")
-                img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                
-                params_info = []
-                if alpha_matting:
-                    params_info.append(f"alpha_matting=True")
-                if post_process_mask:
-                    params_info.append(f"post_process_mask=True")
-                if bgcolor:
-                    params_info.append(f"bgcolor={bgcolor}")
-                
-                params_text = f" ({', '.join(params_info)})" if params_info else ""
-                img_size = f"{processed_image.width}x{processed_image.height}"
-                
-                return [
-                    TextContent(type="text", text=f"✅ 背景已清除（使用 AI 模型）{params_text}\n图片尺寸: {img_size}"),
-                    ImageContent(type="image", data=img_base64, mimeType="image/png")
-                ]
-            except Exception as e:
-                return [TextContent(type="text", text=f"❌ 清除背景失败: {str(e)}")]
-        
-        # ========== 13. 保存 ==========
+        # ========== 12. 保存 ==========
         elif name == "save":
             canvas_id = arguments.get("canvas_id", "default")
             if canvas_id not in canvas_storage:
@@ -956,7 +836,7 @@ async def call_tool(name: str, arguments: dict):
                 ImageContent(type="image", data=painter.to_base64(), mimeType="image/png")
             ]
         
-        # ========== 14. 缩小图片 ==========
+        # ========== 13. 缩小图片 ==========
         elif name == "resize_image":
             try:
                 # 加载图片
@@ -1008,7 +888,7 @@ async def call_tool(name: str, arguments: dict):
             except Exception as e:
                 return [TextContent(type="text", text=f"❌ 缩放图片失败: {str(e)}")]
         
-        # ========== 15. 自动裁切透明区域 ==========
+        # ========== 14. 自动裁切透明区域 ==========
         elif name == "auto_crop_transparent":
             try:
                 # 加载图片
@@ -1056,7 +936,7 @@ async def call_tool(name: str, arguments: dict):
             except Exception as e:
                 return [TextContent(type="text", text=f"❌ 自动裁切失败: {str(e)}")]
         
-        # ========== 16. 扩充透明区域 ==========
+        # ========== 15. 扩充透明区域 ==========
         elif name == "crop_region":
             try:
                 # 加载图片
@@ -1124,10 +1004,6 @@ async def call_tool(name: str, arguments: dict):
                 ]
             except Exception as e:
                 return [TextContent(type="text", text=f"❌ 扩充透明区域失败: {str(e)}")]
-        
-        # ========== 17. AI 生成图片 ==========
-        elif name == "generate_image":
-            return await handle_generate_image(arguments)
         
         else:
             return [TextContent(type="text", text=f"❌ 未知工具: {name}")]

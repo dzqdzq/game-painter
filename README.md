@@ -1,6 +1,6 @@
 # 🎨 GamePainter - 基础绘图工具
 
-> 提供 17 个核心绘图工具，通过组合可绑制任意复杂图形！集成 AI 生图能力！
+> 提供 15 个核心绘图工具，通过组合可绘制任意复杂图形！
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![PyPI](https://img.shields.io/pypi/v/game-painter.svg)](https://pypi.org/project/game-painter/)
@@ -9,11 +9,10 @@
 
 ## ✨ 特性
 
-- 🎨 **17 个核心工具** - 精简设计，功能完整
-- 🤖 **AI 生图集成** - [Seedream4.5 AI生图](https://www.volcengine.com/docs/82379/1824121?lang=zh)
+- 🎨 **15 个核心工具** - 精简设计，功能完整
 - 🔧 **MCP 工具集成** - 可被 AI 助手直接调用
 - 📐 **灵活组合** - 基础图形组合成复杂图案
-- 🖼️ **图片处理** - 清除背景、裁切、缩放、扩充等
+- 🖼️ **图片处理** - 裁切、缩放、扩充等
 - 🚀 **开箱即用** - 无需复杂配置
 
 ## 🚀 快速开始
@@ -23,7 +22,7 @@
 从 PyPI 安装（推荐）：
 
 ```bash
-# 基础安装（16个核心绘图工具）
+# 基础安装（15个核心绘图工具）
 pip install game-painter
 ```
 
@@ -55,17 +54,14 @@ pip install -e .
   "mcpServers": {
     "game-painter": {
       "command": "uvx",
-      "args": ["game-painter"],
-      "env":{
-        "ARK_DOUBAO_SEEDREAM_API_KEY": 'your api key'
-      }
+      "args": ["game-painter"]
     }
   }
 }
 
 ```
 
-## 🛠️ 工具列表 (17 个)
+## 🛠️ 工具列表 (15 个)
 
 ### 画布管理
 
@@ -108,20 +104,9 @@ pip install -e .
 
 | 工具 | 说明 |
 |------|------|
-| `remove_background` | AI 智能清除背景 |
 | `resize_image` | 缩放图片 |
 | `auto_crop_transparent` | 自动裁切透明区域（PNG） |
 | `crop_region` | 扩充透明区域到指定大小 |
-
-### AI 生图类（可选）
-
-| 工具 | 说明 |
-|------|------|
-| `generate_image` | 火山引擎即梦 AI 文生图（需配置 API Key） |
-
-> ⚠️ **AI 生图功能需要：**
-> 1. 配置环境变量 `ARK_DOUBAO_SEEDREAM_API_KEY`
-> 2. 满足以上条件后，`generate_image` 工具才会出现在工具列表中
 
 ## 📄 License
 
