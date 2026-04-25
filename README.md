@@ -17,30 +17,6 @@
 
 ## 🚀 快速开始
 
-### 安装
-
-从 PyPI 安装（推荐）：
-
-```bash
-# 基础安装（15个核心绘图工具）
-pip install game-painter
-```
-
-或从源码安装：
-
-```bash
-# 克隆项目
-git clone https://github.com/dzqdzq/game-painter.git
-cd game-painter
-
-# 创建虚拟环境并安装依赖
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 基础安装
-pip install -e .
-```
-
 ## 🔌 MCP 工具配置
 
 安装完成后，在 Cursor 或 Claude Desktop 中配置 MCP 服务器。

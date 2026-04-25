@@ -1,6 +1,6 @@
 [project]
 name = "game-painter"
-version = "2.2.5"
+version = "2.2.7"
 description = "🎨 基础绘图工具 - 15个核心MCP绘图工具"
 readme = "README.md"
 license = { text = "MIT" }

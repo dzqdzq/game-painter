@@ -236,7 +236,7 @@ wheels = [
 
 [[package]]
 name = "game-painter"
-version = "2.2.5"
+version = "2.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
